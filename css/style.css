@@ -1,0 +1,55 @@
+body {
+    font-family: 'Vazirmatn', sans-serif;
+}
+
+#proxy-list {
+    animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+#toast {
+    animation: slideIn 0.3s ease-in;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(-100%);
+    }
+
+    to {
+        transform: translateX(0);
+    }
+}
+
+button {
+    transition: all 0.2s ease-in-out;
+}
+
+button:hover {
+    transform: scale(1.05);
+}
+
+p {
+    word-wrap: break-word;
+}
+#toast {
+    z-index: 10;
+}
+footer {
+    position: fixed;
+    bottom: 0;
+    z-index: 5;
+    margin: auto;
+    backdrop-filter: blur(15px);
+    background-color: rgba(255, 255, 255, 0.493);
+    width: 100%;
+}
