@@ -1,26 +1,27 @@
-# 💠 لیست پروکسی‌های تلگرام
+# 💠 Telegram Proxy List
 
-این پروژه یک وب‌سایت ساده و سبک برای دریافت و نمایش پروکسی‌های فعال تلگرام است که با استفاده از HTML, TailwindCSS و JavaScript ساخته شده.  
-پروکسی‌ها از منابع عمومی تلگرام مانند گروه Mahsa Net دریافت می‌شن.
-
----
-
-## ✨ امکانات
-
-- 📡 دریافت لیست پروکسی‌ها با یک کلیک
-- 🎲 انتخاب پروکسی تصادفی
-- 🌙 پشتیبانی از حالت تاریک (دارک مود)
-- ⚡ رابط کاربری سریع، واکنش‌گرا و ساده
-- 📋 امکان کپی سریع پروکسی‌ها
-- 🔒 بدون نیاز به سرور یا بک‌اند (کاملاً سمت کاربر)
+A lightweight and responsive web app for browsing and copying Telegram MTProto proxies. Built with pure HTML, TailwindCSS, and JavaScript.  
+Proxies are collected from public Telegram sources like the **Mahsa Net** channel.
 
 ---
 
-## 🛠️ تکنولوژی‌ها
+## ✨ Features
+
+- 📡 Fetch fresh Telegram proxy list with one click
+- 🎲 Show a random proxy instantly
+- 🌙 Dark mode / light mode support
+- ⚡ Fast, responsive, and mobile-friendly UI
+- 📋 One-click copy to clipboard
+- 🔐 Fully client-side, no backend required
+
+---
+
+## 🛠 Technologies
 
 - HTML5
-- TailwindCSS (از CDN)
-- JavaScript (با jQuery)
-- فونت فارسی Vazirmatn
+- TailwindCSS (via CDN)
+- JavaScript (jQuery)
+- Persian font: [Vazirmatn](https://github.com/rastikerdar/vazirmatn)
 
 ---
+website: <a href="https://freedom-guard.github.io/Proxy/">PROXY</a>
