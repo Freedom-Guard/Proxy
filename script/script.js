@@ -11,24 +11,25 @@ tailwind.config = {
         'dark:bg-purple-500',
         'dark:hover:bg-purple-600'
     ]
-}
-$(document).ready(function () {
+};
+
+document.addEventListener('DOMContentLoaded', () => {
     const url = 'https://raw.githubusercontent.com/MahsaNetConfigTopic/proxy/main/proxies.txt';
     let proxies = [];
-    let isDarkMode = localStorage.getItem('theme') === 'dark';
 
-    if (isDarkMode) {
-        $('body').addClass('dark');
-    }
+    const isDarkMode = localStorage.getItem('theme') === 'dark';
+    if (isDarkMode) document.body.classList.add('dark');
 
-    if (localStorage.getItem('theme') === 'dark' ||
-        (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    if (
+        localStorage.getItem('theme') === 'dark' ||
+        (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)
+    ) {
         document.documentElement.classList.add('dark');
     } else {
         document.documentElement.classList.remove('dark');
     }
 
-    document.getElementById('theme-toggle').addEventListener('click', function () {
+    document.getElementById('theme-toggle').addEventListener('click', () => {
         if (document.documentElement.classList.contains('dark')) {
             document.documentElement.classList.remove('dark');
             localStorage.setItem('theme', 'light');
@@ -37,7 +38,6 @@ $(document).ready(function () {
             localStorage.setItem('theme', 'dark');
         }
     });
-
 
     function debounce(func, wait) {
         let timeout;
@@ -48,85 +48,96 @@ $(document).ready(function () {
     }
 
     function displayProxies(proxyList) {
-        $('#proxy-list').empty();
+        const list = document.getElementById('proxy-list');
+        list.innerHTML = '';
+
         proxyList.forEach((proxy, index) => {
-            const card = `
-                        <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md hover:shadow-xl transition transform hover:-translate-y-1">
-                            <div class="flex justify-between items-center mb-4">
-                                <h3 class="text-lg font-semibold">${proxy.name}</h3>
-                                <span class="text-sm ${proxy.status === 'active' ? 'text-green-500' : 'text-red-500'}">
-                                    ${proxy.status === 'active' ? 'فعال' : 'غیرفعال'}
-                                </span>
-                            </div>
-                            <p class="text-sm text-gray-600 dark:text-gray-400 mb-2" dir="ltr">${proxy.link}</p>
-                            <div class="flex gap-2">
-                                <button class="copy-btn bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition" data-clipboard="${proxy.address}:${proxy.port}">
-                                    کپی
-                                </button>
-                                <button class="connect-btn bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition" data-link="${proxy.link}">
-                                    اتصال
-                                </button>
-                            </div>
-                        </div>`;
-            $('#proxy-list').append(card);
+            const card = document.createElement('div');
+            card.className = 'bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md hover:shadow-xl transition transform hover:-translate-y-1';
+
+            card.innerHTML = `
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-semibold">${proxy.name}</h3>
+          <span class="text-sm ${proxy.status === 'active' ? 'text-green-500' : 'text-red-500'}">
+            ${proxy.status === 'active' ? 'فعال' : 'غیرفعال'}
+          </span>
+        </div>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-2" dir="ltr">${proxy.link}</p>
+        <div class="flex gap-2">
+          <button class="copy-btn bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition" data-clipboard="${proxy.address}:${proxy.port}">کپی</button>
+          <button class="connect-btn bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition" data-link="${proxy.link}">اتصال</button>
+        </div>
+      `;
+            list.appendChild(card);
         });
 
-        $('.copy-btn').off('click').on('click', function () {
-            const text = $(this).data('clipboard');
-            navigator.clipboard.writeText(text).then(() => {
-                $('#toast').text('کپی شد!').removeClass('hidden');
-                setTimeout(() => $('#toast').addClass('hidden'), 2000);
+        document.querySelectorAll('.copy-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const text = btn.getAttribute('data-clipboard');
+                navigator.clipboard.writeText(text).then(() => {
+                    const toast = document.getElementById('toast');
+                    toast.textContent = 'کپی شد!';
+                    toast.classList.remove('hidden');
+                    setTimeout(() => toast.classList.add('hidden'), 2000);
+                });
             });
         });
 
-        $('.connect-btn').off('click').on('click', function () {
-            const link = $(this).data('link');
-            if (link) window.open(link, '_blank');
+        document.querySelectorAll('.connect-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const link = btn.getAttribute('data-link');
+                if (link) window.open(link, '_blank');
+            });
         });
-
     }
 
-    const fetchProxies = debounce(function () {
-        $('#loading').removeClass('hidden');
-        $('#error').addClass('hidden');
-        $('#proxy-list').empty();
+    const fetchProxies = debounce(() => {
+        document.getElementById('loading').classList.remove('hidden');
+        document.getElementById('error').classList.add('hidden');
+        document.getElementById('proxy-list').innerHTML = '';
 
-        $.ajax({
-            url: url,
-            method: 'GET',
-            cache: false,
-            success: function (data) {
-                $('#loading').addClass('hidden');
-                proxies = data.split('\n').filter(line => line.trim() !== '').map((line, index) => {
-                    const [address, port] = line.split(':');
-                    return {
-                        address,
-                        port,
-                        status: 'active',
-                        name: `پروکسی ${index + 1}`,
-                        link: line
-                    };
-                });
+        fetch(url)
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('loading').classList.add('hidden');
+                proxies = data
+                    .split('\n')
+                    .filter(line => line.trim() !== '')
+                    .map((line, index) => {
+                        const [address, port] = line.split(':');
+                        return {
+                            address,
+                            port,
+                            status: 'active',
+                            name: `پروکسی ${index + 1}`,
+                            link: line
+                        };
+                    });
 
                 if (proxies.length === 0) {
-                    $('#error').text('پروکسی یافت نشد!').removeClass('hidden');
+                    const err = document.getElementById('error');
+                    err.textContent = 'پروکسی یافت نشد!';
+                    err.classList.remove('hidden');
                     return;
                 }
 
                 displayProxies(proxies);
-            },
-            error: function () {
-                $('#loading').addClass('hidden');
-                $('#error').text('خطا در دریافت پروکسی‌ها!').removeClass('hidden');
-            }
-        });
+            })
+            .catch(() => {
+                document.getElementById('loading').classList.add('hidden');
+                const err = document.getElementById('error');
+                err.textContent = 'خطا در دریافت پروکسی‌ها!';
+                err.classList.remove('hidden');
+            });
     }, 300);
 
-    $('#fetch-proxies').click(fetchProxies);
+    document.getElementById('fetch-proxies').addEventListener('click', fetchProxies);
 
-    $('#random-proxy').click(function () {
+    document.getElementById('random-proxy').addEventListener('click', () => {
         if (proxies.length === 0) {
-            $('#error').text('ابتدا پروکسی‌ها را دریافت کنید!').removeClass('hidden');
+            const err = document.getElementById('error');
+            err.textContent = 'ابتدا پروکسی‌ها را دریافت کنید!';
+            err.classList.remove('hidden');
             return;
         }
         const randomProxy = [proxies[Math.floor(Math.random() * proxies.length)]];
