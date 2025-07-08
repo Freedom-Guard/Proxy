@@ -98,6 +98,38 @@
             </a>
         </p>
     </footer>
+    <div id="security-check"
+        class="fixed bottom-4 left-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg hidden">
+        در حال بررسی پروکسی ...
+    </div>
+    <div id="security-modal"
+        class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+        <div class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white p-8 rounded-2xl shadow-2xl w-full max-w-md transform transition-all duration-300 ease-out"
+            id="modal-box">
+            <div class="mb-4">
+                <svg class="w-12 h-12 text-red-600 mx-auto mb-2" fill="none" stroke="currentColor" stroke-width="2"
+                    viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M12 9v2m0 4h.01M4.93 4.93a10 10 0 0114.14 0m-14.14 0a10 10 0 000 14.14m14.14-14.14a10 10 0 010 14.14m-14.14 0a10 10 0 0014.14 0" />
+                </svg>
+                <h2 class="text-xl font-bold text-center text-red-700 dark:text-red-400" dir="rtl"> هشدار </h2>
+            </div>
+            <p id="security-modal-message" class="text-center text-sm leading-relaxed mb-6">
+                این متن هشدار اینجا قرار می‌گیرد.
+            </p>
+            <div class="flex justify-center gap-4">
+                <button id="modal-confirm"
+                    class="bg-red-600 hover:bg-red-700 text-white font-semibold px-5 py-2 rounded-lg transition-all duration-200 shadow">
+                    ادامه
+                </button>
+                <button id="modal-cancel"
+                    class="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-white font-semibold px-5 py-2 rounded-lg transition-all duration-200 shadow">
+                    لغو
+                </button>
+            </div>
+        </div>
+    </div>
+
 
 </body>
 

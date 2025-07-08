@@ -23,7 +23,8 @@ body {
     }
 }
 
-#toast {
+#toast, #security-check {
+    z-index: 10;
     animation: slideIn 0.3s ease-in;
 }
 
@@ -49,9 +50,6 @@ p {
     word-wrap: break-word;
 }
 
-#toast {
-    z-index: 10;
-}
 
 footer {
     position: fixed;
