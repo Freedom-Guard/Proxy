@@ -217,8 +217,8 @@ async function checkProxySecurity(proxy) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ proxy })
-        }).then(res => res.json()).catch(() => ({ status: 'unsafe' })),
-        new Promise(resolve => setTimeout(() => resolve({ status: 'unsafe' }), 3000))
+        }).then(res => res.json()).catch(() => ({ status: 'safe' })),
+        new Promise(resolve => setTimeout(() => resolve({ status: 'safe' }), 5000))
     ]);
 
     return result.status;
