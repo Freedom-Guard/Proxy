@@ -227,6 +227,18 @@ async function checkProxySecurity(proxy) {
 function showSecurityToast(type, link = null, hideAfterDelay = true) {
     const securityCheck = document.getElementById('security-check');
 
+    if (type === 'check') {
+        securityCheck.textContent = 'در حال بررسی پروکسی ...';
+    } else if (type === 'safe') {
+        securityCheck.textContent = '✅ پروکسی امن است.';
+    } else if (type === 'reported') {
+        securityCheck.textContent = '❌ پروکسی گزارش‌شده است.';
+    } else if (type === 'unsafe') {
+        securityCheck.textContent = '⚠️ پروکسی ممکن است ناامن باشد.';
+    } else if (type === 'not_connect') {
+        securityCheck.textContent = '⚠️ این پروکسی ممکن است وصل نشود.';
+    }
+
     securityCheck.classList.remove('hidden');
 
     if (hideAfterDelay) {
@@ -254,6 +266,12 @@ async function handleProxyAction(link, proxy) {
             'این پروکسی ممکن است ناامن باشد.',
             () => window.open(link, '_blank'),
             'اتصال با ریسک'
+        );
+    } else if (status === 'not_connect') {
+        showModal(
+            '⚠️ این پروکسی ممکن است وصل نشود یا از کار افتاده باشد.',
+            () => window.open(link, '_blank'),
+            'امتحان اتصال'
         );
     } else {
         window.open(link, '_blank');
