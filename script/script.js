@@ -14,7 +14,8 @@ tailwind.config = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    const url = 'https://raw.githubusercontent.com/MahsaNetConfigTopic/proxy/main/proxies.txt';
+    const mainURL = 'https://raw.githubusercontent.com/MahsaNetConfigTopic/proxy/main/proxies.txt';
+    const backupURL = 'https://req.freedomguard.workers.dev/' + (mainURL);
     let proxies = [];
 
     const storedTheme = localStorage.getItem('theme');
@@ -42,11 +43,11 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    function displayProxies(proxyList) {
+    function displayProxies(listData) {
         const list = document.getElementById('proxy-list');
         list.innerHTML = '';
 
-        if (proxyList.length === 0) {
+        if (listData.length === 0) {
             const err = document.getElementById('error');
             err.textContent = 'پروکسی یافت نشد!';
             err.classList.remove('hidden');
@@ -55,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('error').classList.add('hidden');
         }
 
-        proxyList.forEach((proxy, index) => {
+        listData.forEach((proxy, index) => {
             const card = document.createElement('div');
             card.className = 'bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md hover:shadow-xl transition transform hover:-translate-y-1';
 
@@ -84,24 +85,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 showSecurityToast('check');
                 const status = await checkProxySecurity(proxy);
                 showSecurityToast(status, null, true);
-                if (status == "reported") {
+
+                if (status === "reported") {
                     showModal(
-                        ` <b>ج.ا در کمین است!</b><br>این پروکسی ممکن است توسط سایبری‌های ج.ا تولید شده باشد و ابزار پروپاگاندای حکومتی باشد.`,
+                        `<b>ج.ا در کمین است!</b><br>این پروکسی ممکن است توسط سایبری‌های ج.ا تولید شده باشد.`,
                         () => {
                             navigator.clipboard.writeText(text).then(() => {
                                 const toast = document.getElementById('toast');
                                 toast.textContent = 'کپی شد!';
                                 toast.classList.remove('hidden');
                                 setTimeout(() => toast.classList.add('hidden'), 2000);
-                            }).catch(err => {
-                                console.error('Failed to copy: ', err);
-                                const toast = document.getElementById('toast');
-                                toast.textContent = 'خطا در کپی!';
-                                toast.classList.remove('hidden');
-                                setTimeout(() => toast.classList.add('hidden'), 2000);
                             });
                         },
-                        'کپی '
+                        'کپی'
                     );
                 } else {
                     setTimeout(() => {
@@ -110,16 +106,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             toast.textContent = 'کپی شد!';
                             toast.classList.remove('hidden');
                             setTimeout(() => toast.classList.add('hidden'), 2000);
-                        }).catch(err => {
-                            console.error('Failed to copy: ', err);
-                            const toast = document.getElementById('toast');
-                            toast.textContent = 'خطا در کپی!';
-                            toast.classList.remove('hidden');
-                            setTimeout(() => toast.classList.add('hidden'), 2000);
                         });
                     }, 800);
                 }
-
             });
         });
 
@@ -148,7 +137,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     toast.classList.remove('hidden');
                     setTimeout(() => toast.classList.add('hidden'), 3000);
                 } catch (error) {
-                    console.error('Error reporting proxy:', error);
                     const toast = document.getElementById('toast');
                     toast.textContent = 'خطا در ارسال گزارش!';
                     toast.classList.remove('hidden');
@@ -158,18 +146,24 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    async function fetchFallback(main, backup) {
+        try {
+            const res = await fetch(main);
+            if (!res.ok) throw new Error();
+            return await res.text();
+        } catch {
+            const res = await fetch(backup);
+            if (!res.ok) throw new Error();
+            return await res.text();
+        }
+    }
+
     const fetchProxies = debounce(() => {
         document.getElementById('loading').classList.remove('hidden');
         document.getElementById('error').classList.add('hidden');
         document.getElementById('proxy-list').innerHTML = '';
 
-        fetch(url)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.text();
-            })
+        fetchFallback(mainURL, backupURL)
             .then(data => {
                 document.getElementById('loading').classList.add('hidden');
                 proxies = data
@@ -188,8 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 displayProxies(proxies);
             })
-            .catch(error => {
-                console.error('Error fetching proxies:', error);
+            .catch(() => {
                 document.getElementById('loading').classList.add('hidden');
                 const err = document.getElementById('error');
                 err.textContent = 'خطا در دریافت پروکسی‌ها!';
