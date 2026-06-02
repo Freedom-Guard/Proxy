@@ -16,7 +16,14 @@ tailwind.config = {
 document.addEventListener('DOMContentLoaded', () => {
     const mainURL = 'https://raw.githubusercontent.com/MahsaNetConfigTopic/proxy/main/proxies.txt';
     const backupURL = 'https://req.freedomguard.workers.dev/' + (mainURL);
+    const batchSize = 100;
     let proxies = [];
+    let renderedCount = 0;
+
+    const loadStatus = document.getElementById('load-status');
+    const loadMoreBtn = document.getElementById('load-more');
+    const proxyList = document.getElementById('proxy-list');
+    const errorBox = document.getElementById('error');
 
     const storedTheme = localStorage.getItem('theme');
     if (storedTheme === 'dark' || (!storedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
@@ -35,6 +42,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    proxyList.addEventListener('click', handleProxyListClick);
+    loadMoreBtn.addEventListener('click', renderNextBatch);
+
     function debounce(func, wait) {
         let timeout;
         return function () {
@@ -44,106 +54,114 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function displayProxies(listData) {
-        const list = document.getElementById('proxy-list');
-        list.innerHTML = '';
-
         if (listData.length === 0) {
-            const err = document.getElementById('error');
-            err.textContent = 'پروکسی یافت نشد!';
-            err.classList.remove('hidden');
+            errorBox.textContent = 'پروکسی یافت نشد!';
+            errorBox.classList.remove('hidden');
+            proxyList.innerHTML = '';
+            loadStatus.textContent = '';
+            loadMoreBtn.classList.add('hidden');
             return;
-        } else {
-            document.getElementById('error').classList.add('hidden');
         }
 
-        listData.forEach((proxy, index) => {
-            const card = document.createElement('div');
-            card.className = 'bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md hover:shadow-xl transition transform hover:-translate-y-1';
+        errorBox.classList.add('hidden');
+        proxies = listData;
+        renderedCount = 0;
+        proxyList.innerHTML = '';
+        renderNextBatch();
+    }
 
+    function renderNextBatch() {
+        if (renderedCount >= proxies.length) return;
+        const nextChunk = proxies.slice(renderedCount, renderedCount + batchSize);
+        appendProxies(nextChunk);
+        renderedCount += nextChunk.length;
+        updateLoadStatus();
+        if (renderedCount >= proxies.length) {
+            loadMoreBtn.classList.add('hidden');
+        } else {
+            loadMoreBtn.classList.remove('hidden');
+        }
+    }
+
+    function appendProxies(items) {
+        const fragment = document.createDocumentFragment();
+        items.forEach(proxy => {
+            const card = document.createElement('div');
+            card.className = 'proxy-card bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-xl hover:shadow-2xl transition transform hover:-translate-y-1';
             card.innerHTML = `
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-semibold">${proxy.name}</h3>
-                <span class="text-sm ${proxy.status === 'active' ? 'text-green-500' : 'text-red-500'}">
-                ${proxy.status === 'active' ? 'فعال' : 'غیرفعال'}
+            <div class="flex justify-between items-start gap-3 mb-4">
+                <div>
+                    <h3 class="text-xl font-bold text-slate-900 dark:text-gray-100">${proxy.name}</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1" dir="ltr">${proxy.link}</p>
+                </div>
+                <span class="px-3 py-1 rounded-full text-xs font-semibold ${proxy.status === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300' : 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300'}">
+                    ${proxy.status === 'active' ? 'فعال' : 'غیرفعال'}
                 </span>
             </div>
-            <p class="text-sm text-gray-600 dark:text-gray-400 mb-2" dir="ltr">${proxy.link}</p>
-            <div class="flex gap-2">
-                <button class="copy-btn bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition" data-clipboard="${proxy.address}:${proxy.port}">کپی</button>
-                <button class="connect-btn bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition" data-link="${proxy.link}" data-proxy-address="${proxy.address}:${proxy.port}">اتصال</button>
-                <button class="report-btn bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition" data-proxy="${proxy.address}:${proxy.port}">گزارش</button>
+            <div class="flex flex-wrap gap-2">
+                <button class="copy-btn bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition" data-clipboard="${proxy.address}:${proxy.port}">کپی</button>
+                <button class="connect-btn bg-emerald-500 text-white px-4 py-2 rounded-lg hover:bg-emerald-600 transition" data-link="${proxy.link}" data-proxy-address="${proxy.address}:${proxy.port}">اتصال</button>
+                <button class="report-btn bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition" data-proxy="${proxy.address}:${proxy.port}">گزارش</button>
             </div>
             `;
-            list.appendChild(card);
+            fragment.appendChild(card);
         });
+        proxyList.appendChild(fragment);
+    }
 
-        document.querySelectorAll('.copy-btn').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const text = btn.getAttribute('data-clipboard');
-                const proxy = text;
+    function updateLoadStatus() {
+        if (proxies.length === 0) {
+            loadStatus.textContent = '';
+            return;
+        }
+        loadStatus.textContent = `نمایش ${Math.min(renderedCount, proxies.length)} از ${proxies.length} پروکسی`;
+    }
 
-                showSecurityToast('check');
-                const status = await checkProxySecurity(proxy);
+    function handleProxyListClick(event) {
+        const button = event.target.closest('button');
+        if (!button) return;
+
+        if (button.classList.contains('copy-btn')) {
+            const text = button.getAttribute('data-clipboard');
+            if (!text) return;
+            showSecurityToast('check');
+            checkProxySecurity(text).then(status => {
                 showSecurityToast(status, null, true);
-
-                if (status === "reported") {
+                if (status === 'reported') {
                     showModal(
                         `<b>ج.ا در کمین است!</b><br>این پروکسی ممکن است توسط سایبری‌های ج.ا تولید شده باشد.`,
-                        () => {
-                            navigator.clipboard.writeText(text).then(() => {
-                                const toast = document.getElementById('toast');
-                                toast.textContent = 'کپی شد!';
-                                toast.classList.remove('hidden');
-                                setTimeout(() => toast.classList.add('hidden'), 2000);
-                            });
-                        },
+                        () => navigator.clipboard.writeText(text).then(() => showToast('کپی شد!')),
                         'کپی'
                     );
                 } else {
-                    setTimeout(() => {
-                        navigator.clipboard.writeText(text).then(() => {
-                            const toast = document.getElementById('toast');
-                            toast.textContent = 'کپی شد!';
-                            toast.classList.remove('hidden');
-                            setTimeout(() => toast.classList.add('hidden'), 2000);
-                        });
-                    }, 800);
+                    setTimeout(() => navigator.clipboard.writeText(text).then(() => showToast('کپی شد!')), 800);
                 }
             });
-        });
+        }
 
-        document.querySelectorAll('.connect-btn').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const link = btn.getAttribute('data-link');
-                const proxyAddress = btn.getAttribute('data-proxy-address');
-                await handleProxyAction(link, proxyAddress);
-            });
-        });
+        if (button.classList.contains('connect-btn')) {
+            const link = button.getAttribute('data-link');
+            const proxyAddress = button.getAttribute('data-proxy-address');
+            if (link && proxyAddress) handleProxyAction(link, proxyAddress);
+        }
 
-        document.querySelectorAll('.report-btn').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const proxy = btn.getAttribute('data-proxy');
+        if (button.classList.contains('report-btn')) {
+            const proxy = button.getAttribute('data-proxy');
+            if (!proxy) return;
+            fetch('https://proxy.freedomguard.workers.dev/report', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ proxy })
+            }).then(res => res.json()).then(data => showToast(data.message || 'گزارش ثبت شد!')).catch(() => showToast('خطا در ارسال گزارش!'));
+        }
+    }
 
-                try {
-                    const res = await fetch('https://proxy.freedomguard.workers.dev/report', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ proxy }),
-                    });
-                    const data = await res.json();
+    window.addEventListener('scroll', onScroll);
 
-                    const toast = document.getElementById('toast');
-                    toast.textContent = data.message || 'گزارش ثبت شد!';
-                    toast.classList.remove('hidden');
-                    setTimeout(() => toast.classList.add('hidden'), 3000);
-                } catch (error) {
-                    const toast = document.getElementById('toast');
-                    toast.textContent = 'خطا در ارسال گزارش!';
-                    toast.classList.remove('hidden');
-                    setTimeout(() => toast.classList.add('hidden'), 3000);
-                }
-            });
-        });
+    function onScroll() {
+        if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 220) {
+            renderNextBatch();
+        }
     }
 
     async function fetchFallback(main, backup) {

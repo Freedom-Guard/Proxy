@@ -66,6 +66,10 @@
             </button>
         </div>
 
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-3 mb-6">
+            <div id="load-status" class="text-sm text-gray-600 dark:text-gray-300"></div>
+        </div>
+
         <div id="loading" class="hidden text-center flex justify-center mb-6">
             <div class="loader"></div>
         </div>
@@ -73,12 +77,18 @@
             class="hidden text-center mb-6 bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-300 p-4 rounded-lg">
         </div>
         <div id="proxy-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+        <div class="flex justify-center mt-6">
+            <button id="load-more"
+                class="hidden bg-indigo-600 dark:bg-indigo-500 text-white px-5 py-3 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 transition">
+                بارگذاری بیشتر
+            </button>
+        </div>
     </div>
     <div id="toast" class="fixed bottom-4 left-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg hidden">
         کپی شد!
     </div>
     <div
-        class="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 p-6 rounded-xl shadow-md mb-6 leading-relaxed">
+        class="bg-white m-3 dark:bg-gray-800 text-gray-800 dark:text-gray-100 p-6 rounded-xl shadow-md mb-6 leading-relaxed">
         <h2 class="text-lg font-bold mb-4">📘 راهنمای استفاده</h2>
         <ul class="list-disc pr-5 space-y-2">
             <li>
@@ -94,31 +104,38 @@
                 به‌صورت خودکار کپی شده و آماده استفاده در تلگرام است.
             </li>
             <li>
-                <strong class="text-indigo-600 dark:text-indigo-400">اتصال :</strong>  پروکسی‌ها دارای دکمه
+                <strong class="text-indigo-600 dark:text-indigo-400">اتصال :</strong> پروکسی‌ها دارای دکمه
                 "اتصال" هستند که با کلیک روی آن مستقیماً در تلگرام باز میشود و میتوانید متصل شوید.
             </li>
             <li>
                 <strong class="text-red-600 dark:text-red-400">گزارش پروکسی مشکوک:</strong> اگر پروکسی مشکوک به ارتباط
-                با فیلترینگ ج.ا یا ناامن بود یا متصل نشدند، با زدن دکمه "گزارش"، پیام هشدار برای دیگر کاربران نمایش داده شده و می‌توانند آن را رد یا
+                با فیلترینگ ج.ا یا ناامن بود یا متصل نشدند، با زدن دکمه "گزارش"، پیام هشدار برای دیگر کاربران نمایش داده
+                شده و می‌توانند آن را رد یا
                 ادامه دهند.
             </li>
         </ul>
     </div>
-    <div class="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 p-6 rounded-xl shadow-md mb-6 leading-relaxed">
-    <h2 class="text-lg font-bold mb-2">🔐 درباره این ابزار</h2>
-   <ul class="list-disc pr-5 space-y-2">
-    <li>
-        <strong class="text-purple-600 dark:text-purple-400">درباره:</strong> این وب‌اپ سبک، ساده و امن طراحی شده برای دسترسی سریع به <span class="text-blue-600 dark:text-blue-400 font-medium">پروکسی‌های MTProto تلگرام</span> بدون نیاز به فیلترشکن. امکاناتی مثل حالت تاریک، کپی سریع، اتصال مستقیم و هشدار امنیتی تجربه‌ای مطمئن و راحت فراهم می‌کنه.
-    </li>
-    <li>
-        <strong class="text-purple-600 dark:text-purple-400">مشارکت:</strong> کد منبع این ابزار متن‌بازه و در گیت‌هاب منتشر شده؛ خوشحال می‌شیم اگر مشارکت کنی یا ستاره‌اش بزنی ✨
-    </li>
-   </ul>
-    <a href="https://github.com/Freedom-Guard/Proxy" target="_blank"
-       class="inline-block bg-gray-900 dark:bg-white text-white dark:text-black px-5 py-2 rounded-lg font-semibold hover:bg-gray-800 dark:hover:bg-gray-200 transition">
-        📂 مشاهده سورس در GitHub
-    </a>       
-</div>
+    <div
+        class="bg-white m-3 dark:bg-gray-800 text-gray-800 dark:text-gray-100 p-6 rounded-xl shadow-md mb-6 leading-relaxed">
+            <h2 class="text-lg font-bold mb-2">🔐 درباره این ابزار</h2>
+           <ul class="list-disc pr-5 space-y-2">
+            <li>
+                <strong class="text-purple-600 dark:text-purple-400">درباره:</strong> این وب‌اپ سبک، ساده و امن طراحی
+                شده برای دسترسی سریع به <span class="text-blue-600 dark:text-blue-400 font-medium">پروکسی‌های MTProto
+                    تلگرام</span> بدون نیاز به فیلترشکن. امکاناتی مثل حالت تاریک، کپی سریع، اتصال مستقیم و هشدار امنیتی
+                تجربه‌ای مطمئن و راحت فراهم می‌کنه.
+                   
+            </li>
+                <li>
+                <strong class="text-purple-600 dark:text-purple-400">مشارکت:</strong> کد منبع این ابزار متن‌بازه و در
+                گیت‌هاب منتشر شده؛ خوشحال می‌شیم اگر مشارکت کنی یا ستاره‌اش بزنی ✨
+            </li>
+        </ul>
+            <a href="https://github.com/Freedom-Guard/Proxy" target="_blank"      
+             class="inline-block bg-gray-900 dark:bg-white text-white dark:text-black px-5 py-2 rounded-lg font-semibold hover:bg-gray-800 dark:hover:bg-gray-200 transition">
+                    📂 مشاهده سورس در GitHub
+                </a>
+    </div>
     <div class="m-5 p-5"></div>
 
     <footer
@@ -132,7 +149,7 @@
             تهیه می‌شن
         </p>
         <p>
-           ساخته شده توسط ❤️
+            ساخته شده توسط ❤️
             <a href="https://t.me/Freedom_Guard_Net" target="_blank"
                 class="text-purple-600 dark:text-purple-400 hover:underline font-semibold">
                 گارد آزادی
@@ -141,7 +158,7 @@
             <a href="https://t.me/FG_Link" target="_blank"
                 class="text-green-600 dark:text-green-400 hover:underline font-semibold">
                 پیوند آزادی
-            </a>    
+            </a>   
         </p>
     </footer>
     <div id="security-check"
