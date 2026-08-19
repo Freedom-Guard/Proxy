@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const batchSize = 100;
 
     let proxies = [];
+    let backUpProxies = [];
     let renderedCount = 0;
 
     const loadStatus = document.getElementById('load-status');
@@ -169,7 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
             secret: proxy.secret
         });
 
-        return `https://t.me/proxy?${params.toString()}`;
+        return `tg://proxy?${params.toString()}`;
     }
 
     function normalizeJSONProxy(proxy, index) {
@@ -734,7 +735,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 return;
             }
-
+            
+            proxies.length == 1 ? proxies = backUpProxies : backUpProxies = proxies;
             const randomProxy = [
                 proxies[Math.floor(Math.random() * proxies.length)]
             ];
@@ -837,6 +839,7 @@ async function handleProxyAction(link, proxy) {
             'امتحان اتصال'
         );
     } else {
+        link = link.replace("https://t.me/", "tg://");
         window.open(link, '_blank');
     }
 }
