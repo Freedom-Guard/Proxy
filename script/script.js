@@ -15,17 +15,27 @@ tailwind.config = {
 
 document.addEventListener('DOMContentLoaded', () => {
     const mainURLs = [
-        'https://mhditaheri.github.io/ProxyCollector/proxy.txt',
-        'https://raw.githubusercontent.com/ALIILAPRO/MTProtoProxy/main/proxies.json',
-        'https://raw.githubusercontent.com/Freedom-Guard-Builder/Freedom-Finder/refs/heads/main/out/configs/proxies.txt'
+        'https://mhditaheri.github.io/ProxyCollector/proxy.txt#MHD GH',
+        'https://raw.githubusercontent.com/ALIILAPRO/MTProtoProxy/main/proxies.json#LAPRO GH',
+        'https://raw.githubusercontent.com/Freedom-Guard-Builder/Freedom-Finder/refs/heads/main/out/configs/proxies.txt#Freedom Finder',
+        'https://raw.githubusercontent.com/kort0881/telegram-proxy-collector/refs/heads/main/proxy_all.txt#Kort GH',
+        'https://raw.githubusercontent.com/Maxsool/MTProxyCollector/refs/heads/main/proxy.txt#MAX GH'
     ];
 
     const backupURL = 'https://req.freedomguard.workers.dev/';
     const batchSize = 100;
+    const cacheName = 'proxy-sources-v1';
+    const cacheMaxAge = 60 * 60 * 1000;
+    const cacheKeyPrefix = 'proxy-cache-time:';
 
     let proxies = [];
     let backUpProxies = [];
     let renderedCount = 0;
+    let sourceProxies = new Map();
+    let sourceModes = new Map();
+    let pendingSources = 0;
+    let renderToken = 0;
+    let fetchRunId = 0;
 
     const loadStatus = document.getElementById('load-status');
     const loadMoreBtn = document.getElementById('load-more');
@@ -59,6 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     proxyList.addEventListener('click', handleProxyListClick);
     loadMoreBtn?.addEventListener('click', renderNextBatch);
+
     sortProxiesBtn?.addEventListener('click', () => {
         if (proxies.length === 0) {
             const err = document.getElementById('error');
@@ -129,6 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         return `${latency} ms`;
     }
+
     function sortByLatency(list) {
         return [...list].sort((a, b) => {
             const latencyA = normalizeLatency(a.latency);
@@ -151,6 +163,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 : latencyB - latencyA;
         });
     }
+
     function buildTelegramLink(proxy) {
         if (proxy.connect_url) {
             return proxy.connect_url;
@@ -224,7 +237,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return null;
         }
 
-        if (cleanLine.startsWith('http://') || cleanLine.startsWith('https://')) {
+        if (
+            cleanLine.startsWith('http://') ||
+            cleanLine.startsWith('https://')
+        ) {
             return {
                 id: `txt-${index}`,
                 sourceType: 'txt',
@@ -285,13 +301,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     items = parsed.proxies;
                 } else if (Array.isArray(parsed.data)) {
                     items = parsed.data;
-                } else if (parsed.host || parsed.server || parsed.address) {
+                } else if (
+                    parsed.host ||
+                    parsed.server ||
+                    parsed.address
+                ) {
                     items = [parsed];
                 }
 
                 return items
                     .filter(item => item && typeof item === 'object')
-                    .map((item, index) => normalizeJSONProxy(item, index));
+                    .map((item, index) =>
+                        normalizeJSONProxy(item, index)
+                    );
             } catch {
                 return [];
             }
@@ -299,8 +321,73 @@ document.addEventListener('DOMContentLoaded', () => {
 
         return trimmed
             .split(/\r?\n/)
-            .map((line, index) => normalizeTXTProxy(line, index))
+            .map((line, index) =>
+                normalizeTXTProxy(line, index)
+            )
             .filter(Boolean);
+    }
+
+    function getCacheTimeKey(url) {
+        return `${cacheKeyPrefix}${url}`;
+    }
+
+    async function getCachedSource(url) {
+        try {
+            if (!('caches' in window)) {
+                return null;
+            }
+
+            const cache = await caches.open(cacheName);
+            const response = await cache.match(url);
+
+            if (!response) {
+                return null;
+            }
+
+            const timestamp = Number(
+                localStorage.getItem(getCacheTimeKey(url)) || 0
+            );
+
+            const data = await response.text();
+
+            if (!data.trim()) {
+                return null;
+            }
+
+            return {
+                data,
+                timestamp,
+                age: timestamp > 0
+                    ? Date.now() - timestamp
+                    : Infinity
+            };
+        } catch {
+            return null;
+        }
+    }
+
+    async function setCachedSource(url, data) {
+        try {
+            if (!('caches' in window)) {
+                return;
+            }
+
+            const cache = await caches.open(cacheName);
+
+            await cache.put(
+                url,
+                new Response(data, {
+                    headers: {
+                        'Content-Type': 'text/plain;charset=UTF-8'
+                    }
+                })
+            );
+
+            localStorage.setItem(
+                getCacheTimeKey(url),
+                String(Date.now())
+            );
+        } catch { }
     }
 
     async function fetchSource(url) {
@@ -313,7 +400,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(`HTTP ${response.status}`);
             }
 
-            return await response.text();
+            const data = await response.text();
+
+            await setCachedSource(url, data);
+
+            return data;
         } catch (error) {
             if (!url.toLowerCase().includes('.json')) {
                 try {
@@ -322,13 +413,107 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
 
                     if (backupResponse.ok) {
-                        return await backupResponse.text();
+                        const data = await backupResponse.text();
+
+                        await setCachedSource(url, data);
+
+                        return data;
                     }
                 } catch { }
             }
 
             throw error;
         }
+    }
+
+    function getSourceLabel() {
+        const modes = [...sourceModes.values()];
+
+        if (modes.length === 0) {
+            return 'در انتظار دریافت...';
+        }
+
+        const cacheCount = modes.filter(mode =>
+            mode === 'cache'
+        ).length;
+
+        const onlineCount = modes.filter(mode =>
+            mode === 'online'
+        ).length;
+
+        if (cacheCount > 0 && onlineCount > 0) {
+            return 'کش و آنلاین';
+        }
+
+        if (cacheCount > 0) {
+            return 'کش';
+        }
+
+        if (onlineCount > 0) {
+            return 'آنلاین';
+        }
+
+        return 'در انتظار دریافت...';
+    }
+
+    function updateLoadStatus() {
+        if (proxies.length === 0 && pendingSources === 0) {
+            loadStatus.textContent = '';
+            return;
+        }
+
+        const sourceLabel = getSourceLabel();
+
+        if (pendingSources > 0) {
+            loadStatus.textContent =
+                `نمایش از ${sourceLabel}: ${renderedCount} از ${proxies.length} پروکسی | ${pendingSources} پروکسی منبع در حال دریافت...`;
+        } else {
+            loadStatus.textContent =
+                `نمایش از ${sourceLabel}: ${Math.min(
+                    renderedCount,
+                    proxies.length
+                )} از ${proxies.length} پروکسی`;
+        }
+    }
+
+    function rebuildProxiesFromSources(sourceName) {
+        const allProxies = [];
+
+        sourceProxies.forEach(list => {
+            allProxies.push(...list);
+        });
+
+        const uniqueProxies = [];
+        const seen = new Set();
+
+        allProxies.forEach(proxy => {
+            const key =
+                proxy.connect_url ||
+                `${proxy.address}:${proxy.port}:${proxy.secret}`;
+
+            if (!seen.has(key)) {
+                seen.add(key);
+                uniqueProxies.push(proxy);
+            }
+        });
+
+        proxies = sortByLatency(uniqueProxies);
+
+        renderedCount = 0;
+        renderToken += 1;
+
+        proxyList.innerHTML = '';
+
+        updateSortUI();
+        renderNextBatch(sourceName);
+
+        document.querySelectorAll(
+            '.sort-btn, .sort-indicator'
+        ).forEach(el => {
+            el.style = 'display:inline-flex;';
+        });
+
+        updateLoadStatus();
     }
 
     function displayProxies(listData) {
@@ -350,10 +535,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         updateSortUI();
         renderNextBatch();
-        document.querySelectorAll('.sort-btn, .sort-indicator').forEach(el => {
-            el.style = "display:inline-flex;";
+
+        document.querySelectorAll(
+            '.sort-btn, .sort-indicator'
+        ).forEach(el => {
+            el.style = 'display:inline-flex;';
         });
     }
+
     function updateSortUI() {
         if (!sortStatus || !sortProxiesBtn) {
             return;
@@ -361,45 +550,55 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (sortAscending) {
             sortStatus.textContent = 'پینگ: کم به زیاد';
+
             sortProxiesBtn.innerHTML = `
-            <svg class="control-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M3 6h18M6 12h12m-9 6h6" />
-            </svg>
-            مرتب‌سازی پینگ: کم به زیاد
-        `;
+                <svg class="control-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M3 6h18M6 12h12m-9 6h6" />
+                </svg>
+                مرتب‌سازی پینگ: کم به زیاد
+            `;
         } else {
             sortStatus.textContent = 'پینگ: زیاد به کم';
+
             sortProxiesBtn.innerHTML = `
-            <svg class="control-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M3 18h18M6 12h12m-9-6h6" />
-            </svg>
-            مرتب‌سازی پینگ: زیاد به کم
-        `;
+                <svg class="control-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M3 18h18M6 12h12m-9-6h6" />
+                </svg>
+                مرتب‌سازی پینگ: زیاد به کم
+            `;
         }
     }
-    function renderNextBatch() {
+
+    function renderNextBatch(sourceName = "FG") {
         if (renderedCount >= proxies.length) {
             return;
         }
+
+        const token = renderToken;
 
         const nextChunk = proxies.slice(
             renderedCount,
             renderedCount + batchSize
         );
 
-        appendProxies(nextChunk);
-
         renderedCount += nextChunk.length;
 
-        updateLoadStatus();
+        requestAnimationFrame(() => {
+            if (token !== renderToken) {
+                return;
+            }
 
-        if (renderedCount >= proxies.length) {
-            loadMoreBtn?.classList.add('hidden');
-        } else {
-            loadMoreBtn?.classList.remove('hidden');
-        }
+            appendProxies(nextChunk, sourceName);
+            updateLoadStatus();
+
+            if (renderedCount >= proxies.length) {
+                loadMoreBtn?.classList.add('hidden');
+            } else {
+                loadMoreBtn?.classList.remove('hidden');
+            }
+        });
     }
 
     function getLatencyClass(latency) {
@@ -420,18 +619,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function operatorRow(title, value) {
         const latency = normalizeLatency(value);
-        const display = latency === null ? '—' : `${latency} ms`;
+        const display =
+            latency === null
+                ? '—'
+                : `${latency} ms`;
 
         return `
             <div class="operator-item">
-                <span class="operator-name">${escapeHTML(title)}</span>
-                <span class="operator-ping ${getLatencyClass(latency)}">${display}</span>
+                <span class="operator-name">
+                    ${escapeHTML(title)}
+                </span>
+                <span class="operator-ping ${getLatencyClass(latency)}">
+                    ${display}
+                </span>
             </div>
         `;
     }
 
-    function appendProxies(items) {
-        const fragment = document.createDocumentFragment();
+    function appendProxies(items, sourceName = "FG") {
+        const fragment =
+            document.createDocumentFragment();
 
         items.forEach(proxy => {
             const card = document.createElement('div');
@@ -439,21 +646,36 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className =
                 'proxy-card bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-xl hover:shadow-2xl transition transform hover:-translate-y-1';
 
-            const address = proxy.address || proxy.host || '';
-            const port = proxy.port || '';
+            const address =
+                proxy.address ||
+                proxy.host ||
+                '';
+
+            const port =
+                proxy.port ||
+                '';
+
             const displayAddress = port
                 ? `${address}:${port}`
                 : address;
 
-            const latency = normalizeLatency(proxy.latency);
+            const latency =
+                normalizeLatency(proxy.latency);
 
             const hasOperators =
                 proxy.operator &&
                 Object.values(proxy.operator).some(
-                    value => normalizeLatency(value) !== null
+                    value =>
+                        normalizeLatency(value) !== null
                 );
 
-            const isJSON = proxy.sourceType === 'json';
+            const isJSON =
+                proxy.sourceType === 'json';
+
+            const sourceMode =
+                proxy.sourceMode === 'cache'
+                    ? 'کش'
+                    : 'آنلاین';
 
             card.innerHTML = `
                 <div class="proxy-card-header">
@@ -464,7 +686,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             </h3>
 
                             <span class="proxy-source-badge ${isJSON ? 'json-badge' : 'txt-badge'}">
-                                ${isJSON ? 'JSON' : 'TXT'}
+                                ${sourceName ?? "FG"}
+                            </span>
+
+                            <span class="proxy-source-badge">
+                                ${sourceMode}
                             </span>
                         </div>
 
@@ -511,10 +737,25 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
 
                             <div class="operators-grid">
-                                ${operatorRow('همراه اول', proxy.operator.mci)}
-                                ${operatorRow('ایرانسل', proxy.operator.irancell)}
-                                ${operatorRow('ثابت', proxy.operator.fixed)}
-                                ${operatorRow('رایتل', proxy.operator.rightel)}
+                                ${operatorRow(
+                            'همراه اول',
+                            proxy.operator.mci
+                        )}
+
+                                ${operatorRow(
+                            'ایرانسل',
+                            proxy.operator.irancell
+                        )}
+
+                                ${operatorRow(
+                            'ثابت',
+                            proxy.operator.fixed
+                        )}
+
+                                ${operatorRow(
+                            'رایتل',
+                            proxy.operator.rightel
+                        )}
                             </div>
                         </div>
                         `
@@ -537,7 +778,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         ? `
                         <div class="connect-url-box">
                             <span class="info-label">لینک اتصال</span>
-                            <p dir="ltr">${escapeHTML(proxy.connect_url)}</p>
+                            <p dir="ltr">
+                                ${escapeHTML(proxy.connect_url)}
+                            </p>
                         </div>
                         `
                         : ''
@@ -574,25 +817,17 @@ document.addEventListener('DOMContentLoaded', () => {
         proxyList.appendChild(fragment);
     }
 
-    function updateLoadStatus() {
-        if (proxies.length === 0) {
-            loadStatus.textContent = '';
-            return;
-        }
-
-        loadStatus.textContent =
-            `نمایش ${Math.min(renderedCount, proxies.length)} از ${proxies.length} پروکسی`;
-    }
-
     function handleProxyListClick(event) {
-        const button = event.target.closest('button');
+        const button =
+            event.target.closest('button');
 
         if (!button) {
             return;
         }
 
         if (button.classList.contains('copy-btn')) {
-            const text = button.getAttribute('data-clipboard');
+            const text =
+                button.getAttribute('data-clipboard');
 
             if (!text) {
                 return;
@@ -601,176 +836,406 @@ document.addEventListener('DOMContentLoaded', () => {
             showSecurityToast('check');
 
             checkProxySecurity(text).then(status => {
-                showSecurityToast(status, null, true);
+                showSecurityToast(
+                    status,
+                    null,
+                    true
+                );
 
                 if (status === 'reported') {
                     showModal(
                         `<b>ج.ا در کمین است!</b><br>این پروکسی ممکن است توسط سایبری‌های ج.ا تولید شده باشد.`,
-                        () => navigator.clipboard
-                            .writeText(text)
-                            .then(() => showToast('کپی شد!')),
+                        () =>
+                            navigator.clipboard
+                                .writeText(text)
+                                .then(() =>
+                                    showToast('کپی شد!')
+                                ),
                         'کپی'
                     );
                 } else {
                     setTimeout(() => {
                         navigator.clipboard
                             .writeText(text)
-                            .then(() => showToast('کپی شد!'));
+                            .then(() =>
+                                showToast('کپی شد!')
+                            );
                     }, 800);
                 }
             });
         }
 
         if (button.classList.contains('connect-btn')) {
-            const link = button.getAttribute('data-link');
-            const proxyAddress = button.getAttribute('data-proxy-address');
+            const link =
+                button.getAttribute('data-link');
+
+            const proxyAddress =
+                button.getAttribute(
+                    'data-proxy-address'
+                );
 
             if (link && proxyAddress) {
-                handleProxyAction(link, proxyAddress);
+                handleProxyAction(
+                    link,
+                    proxyAddress
+                );
             }
         }
 
         if (button.classList.contains('report-btn')) {
-            const proxy = button.getAttribute('data-proxy');
+            const proxy =
+                button.getAttribute('data-proxy');
 
             if (!proxy) {
                 return;
             }
 
-            fetch('https://proxy.freedomguard.workers.dev/report', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    proxy
-                })
-            })
+            fetch(
+                'https://proxy.freedomguard.workers.dev/report',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type':
+                            'application/json'
+                    },
+                    body: JSON.stringify({
+                        proxy
+                    })
+                }
+            )
                 .then(res => res.json())
                 .then(data => {
-                    showToast(data.message || 'گزارش ثبت شد!');
+                    showToast(
+                        data.message ||
+                        'گزارش ثبت شد!'
+                    );
                 })
                 .catch(() => {
-                    showToast('خطا در ارسال گزارش!');
+                    showToast(
+                        'خطا در ارسال گزارش!'
+                    );
                 });
         }
     }
 
-    window.addEventListener('scroll', onScroll);
+    window.addEventListener(
+        'scroll',
+        onScroll
+    );
 
     function onScroll() {
         if (
-            window.innerHeight + window.scrollY >=
+            window.innerHeight +
+            window.scrollY >=
             document.body.offsetHeight - 220
         ) {
             renderNextBatch();
         }
     }
 
-    const fetchProxies = debounce(async () => {
-        document.getElementById('loading')?.classList.remove('hidden');
-        document.getElementById('error')?.classList.add('hidden');
-        document.getElementById('proxy-list').innerHTML = '';
+    const fetchProxies = debounce(
+        async () => {
+            document
+                .getElementById('loading')
+                ?.classList.remove('hidden');
 
-        try {
-            const results = await Promise.allSettled(
-                mainURLs.map(async url => {
-                    const data = await fetchSource(url);
+            document
+                .getElementById('error')
+                ?.classList.add('hidden');
 
-                    return parseProxyData(data, url);
-                })
+            proxyList.innerHTML = '';
+
+            loadMoreBtn?.classList.add(
+                'hidden'
             );
 
-            const allProxies = [];
+            sourceProxies = new Map();
+            sourceModes = new Map();
 
-            results.forEach(result => {
-                if (result.status === 'fulfilled') {
-                    allProxies.push(...result.value);
-                }
-            });
+            proxies = [];
+            renderedCount = 0;
 
-            const uniqueProxies = [];
-            const seen = new Set();
+            pendingSources =
+                mainURLs.length;
 
-            allProxies.forEach(proxy => {
-                const key =
-                    proxy.connect_url ||
-                    `${proxy.address}:${proxy.port}:${proxy.secret}`;
+            renderToken += 1;
 
-                if (!seen.has(key)) {
-                    seen.add(key);
-                    uniqueProxies.push(proxy);
-                }
-            });
+            updateLoadStatus();
 
-            document.getElementById('loading')?.classList.add('hidden');
+            const runId =
+                ++fetchRunId;
 
-            displayProxies(uniqueProxies);
-        } catch (error) {
-            document.getElementById('loading')?.classList.add('hidden');
+            await Promise.all(
+                mainURLs.map(
+                    async url => {
+                        if (
+                            runId !==
+                            fetchRunId
+                        ) {
+                            return;
+                        }
 
-            const err = document.getElementById('error');
+                        const cached =
+                            await getCachedSource(
+                                url
+                            );
 
-            err.textContent = 'خطا در دریافت پروکسی‌ها!';
-            console.log(error);
-            err.classList.remove('hidden');
-        }
-    }, 300);
+                        if (
+                            runId !==
+                            fetchRunId
+                        ) {
+                            return;
+                        }
 
-    document.getElementById('fetch-proxies')?.addEventListener(
-        'click',
-        fetchProxies
+                        if (
+                            cached &&
+                            cached.age <
+                            cacheMaxAge
+                        ) {
+                            const cachedList =
+                                parseProxyData(
+                                    cached.data,
+                                    url
+                                ).map(
+                                    proxy => ({
+                                        ...proxy,
+                                        sourceURL:
+                                            url,
+                                        sourceMode:
+                                            'cache'
+                                    })
+                                );
+
+                            sourceProxies.set(
+                                url,
+                                cachedList
+                            );
+
+                            sourceModes.set(
+                                url,
+                                'cache'
+                            );
+
+                            rebuildProxiesFromSources(url.split("#")[1]);
+                        }
+
+                        try {
+                            const data =
+                                await fetchSource(
+                                    url
+                                );
+
+                            if (
+                                runId !==
+                                fetchRunId
+                            ) {
+                                return;
+                            }
+
+                            const onlineList =
+                                parseProxyData(
+                                    data,
+                                    url
+                                ).map(
+                                    proxy => ({
+                                        ...proxy,
+                                        sourceURL:
+                                            url,
+                                        sourceMode:
+                                            'online'
+                                    })
+                                );
+
+                            sourceProxies.set(
+                                url,
+                                onlineList
+                            );
+
+                            sourceModes.set(
+                                url,
+                                'online'
+                            );
+
+                            rebuildProxiesFromSources(url.split("#")[1]);
+                        } catch (error) {
+                            if (
+                                runId !==
+                                fetchRunId
+                            ) {
+                                return;
+                            }
+
+                            if (
+                                !cached
+                            ) {
+                                sourceModes.delete(
+                                    url
+                                );
+                            }
+
+                            if (
+                                cached &&
+                                cached.data
+                            ) {
+                                const cachedList =
+                                    parseProxyData(
+                                        cached.data,
+                                        url
+                                    ).map(
+                                        proxy => ({
+                                            ...proxy,
+                                            sourceURL:
+                                                url,
+                                            sourceMode:
+                                                'cache'
+                                        })
+                                    );
+
+                                sourceProxies.set(
+                                    url,
+                                    cachedList
+                                );
+
+                                sourceModes.set(
+                                    url,
+                                    'cache'
+                                );
+
+                                rebuildProxiesFromSources(url.split("#")[1]);
+                            }
+                        } finally {
+                            if (
+                                runId ===
+                                fetchRunId
+                            ) {
+                                pendingSources -=
+                                    1;
+
+                                updateLoadStatus();
+
+                                if (
+                                    pendingSources ===
+                                    0
+                                ) {
+                                    document
+                                        .getElementById(
+                                            'loading'
+                                        )
+                                        ?.classList.add(
+                                            'hidden'
+                                        );
+
+                                    if (
+                                        proxies.length ===
+                                        0
+                                    ) {
+                                        const err =
+                                            document.getElementById(
+                                                'error'
+                                            );
+
+                                        err.textContent =
+                                            'خطا در دریافت پروکسی‌ها!';
+
+                                        err.classList.remove(
+                                            'hidden'
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                )
+            );
+        },
+        300
     );
 
-    document.getElementById('random-proxy')?.addEventListener(
-        'click',
-        () => {
-            if (proxies.length === 0) {
-                const err = document.getElementById('error');
+    document
+        .getElementById('fetch-proxies')
+        ?.addEventListener(
+            'click',
+            fetchProxies
+        );
 
-                err.textContent =
-                    'ابتدا پروکسی‌ها را دریافت کنید!';
+    document
+        .getElementById('random-proxy')
+        ?.addEventListener(
+            'click',
+            () => {
+                if (
+                    proxies.length === 0
+                ) {
+                    const err =
+                        document.getElementById(
+                            'error'
+                        );
 
-                err.classList.remove('hidden');
+                    err.textContent =
+                        'ابتدا پروکسی‌ها را دریافت کنید!';
 
-                return;
+                    err.classList.remove(
+                        'hidden'
+                    );
+
+                    return;
+                }
+
+                proxies.length == 1
+                    ? proxies =
+                    backUpProxies
+                    : backUpProxies =
+                    proxies;
+
+                const randomProxy = [
+                    proxies[
+                    Math.floor(
+                        Math.random() *
+                        proxies.length
+                    )
+                    ]
+                ];
+
+                displayProxies(
+                    randomProxy
+                );
             }
-            
-            proxies.length == 1 ? proxies = backUpProxies : backUpProxies = proxies;
-            const randomProxy = [
-                proxies[Math.floor(Math.random() * proxies.length)]
-            ];
-
-            displayProxies(randomProxy);
-        }
-    );
+        );
 });
 
 async function checkProxySecurity(proxy) {
-    const result = await Promise.race([
-        fetch('https://proxy.freedomguard.workers.dev/report-check', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                proxy
-            })
-        })
-            .then(res => res.json())
-            .catch(() => ({
-                status: 'safe'
-            })),
-
-        new Promise(resolve =>
-            setTimeout(
-                () => resolve({
-                    status: 'safe'
-                }),
-                5000
+    const result =
+        await Promise.race([
+            fetch(
+                'https://proxy.freedomguard.workers.dev/report-check',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type':
+                            'application/json'
+                    },
+                    body: JSON.stringify({
+                        proxy
+                    })
+                }
             )
-        )
-    ]);
+                .then(res =>
+                    res.json()
+                )
+                .catch(() => ({
+                    status: 'safe'
+                })),
+
+            new Promise(resolve =>
+                setTimeout(
+                    () =>
+                        resolve({
+                            status: 'safe'
+                        }),
+                    5000
+                )
+            )
+        ]);
 
     return result.status;
 }
@@ -781,7 +1246,9 @@ function showSecurityToast(
     hideAfterDelay = true
 ) {
     const securityCheck =
-        document.getElementById('security-check');
+        document.getElementById(
+            'security-check'
+        );
 
     if (!securityCheck) {
         return;
@@ -804,43 +1271,76 @@ function showSecurityToast(
             '⚠️ این پروکسی ممکن است وصل نشود.';
     }
 
-    securityCheck.classList.remove('hidden');
+    securityCheck.classList.remove(
+        'hidden'
+    );
 
     if (hideAfterDelay) {
         setTimeout(() => {
-            securityCheck.classList.add('hidden');
+            securityCheck.classList.add(
+                'hidden'
+            );
         }, 1500);
     }
 }
 
-async function handleProxyAction(link, proxy) {
+async function handleProxyAction(
+    link,
+    proxy
+) {
     showSecurityToast('check');
 
-    const status = await checkProxySecurity(proxy);
+    const status =
+        await checkProxySecurity(
+            proxy
+        );
 
     showSecurityToast(status);
 
     if (status === 'reported') {
         showModal(
             `<b>ج.ا در کمین است!</b><br>این پروکسی ممکن است توسط سایبری‌های ج.ا تولید شده باشد و ابزار پروپاگاندای حکومتی باشد.`,
-            () => window.open(link, '_blank'),
+            () =>
+                window.open(
+                    link,
+                    '_blank'
+                ),
             'اتصال'
         );
-    } else if (status === 'unsafe') {
+    } else if (
+        status === 'unsafe'
+    ) {
         showModal(
             'این پروکسی ممکن است ناامن باشد.',
-            () => window.open(link, '_blank'),
+            () =>
+                window.open(
+                    link,
+                    '_blank'
+                ),
             'اتصال با ریسک'
         );
-    } else if (status === 'not_connect') {
+    } else if (
+        status === 'not_connect'
+    ) {
         showModal(
             '⚠️ این پروکسی ممکن است وصل نشود یا از کار افتاده باشد.',
-            () => window.open(link, '_blank'),
+            () =>
+                window.open(
+                    link,
+                    '_blank'
+                ),
             'امتحان اتصال'
         );
     } else {
-        link = link.replace("https://t.me/", "tg://");
-        window.open(link, '_blank');
+        link = link.replace(
+            'https://t.me/',
+            'tg://'
+        );
+
+        window.open(
+            link,
+            '_blank'
+        );
     }
 }
 
@@ -850,29 +1350,47 @@ function showModal(
     confirmText = 'ادامه'
 ) {
     const modal =
-        document.getElementById('security-modal');
+        document.getElementById(
+            'security-modal'
+        );
 
     const msgBox =
-        document.getElementById('security-modal-message');
+        document.getElementById(
+            'security-modal-message'
+        );
 
     const confirmBtn =
-        document.getElementById('modal-confirm');
+        document.getElementById(
+            'modal-confirm'
+        );
 
     const cancelBtn =
-        document.getElementById('modal-cancel');
+        document.getElementById(
+            'modal-cancel'
+        );
 
-    if (!modal || !msgBox || !confirmBtn || !cancelBtn) {
+    if (
+        !modal ||
+        !msgBox ||
+        !confirmBtn ||
+        !cancelBtn
+    ) {
         onConfirm?.();
         return;
     }
 
     msgBox.innerHTML = message;
-    confirmBtn.textContent = confirmText;
+    confirmBtn.textContent =
+        confirmText;
 
-    modal.classList.remove('hidden');
+    modal.classList.remove(
+        'hidden'
+    );
 
     const close = () => {
-        modal.classList.add('hidden');
+        modal.classList.add(
+            'hidden'
+        );
 
         confirmBtn.removeEventListener(
             'click',
